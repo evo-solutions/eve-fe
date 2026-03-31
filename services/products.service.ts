@@ -1,4 +1,5 @@
 import { authAxiosService } from "./axios.service";
+import type { AxiosError } from "axios";
 
 export interface ProductItem {
   id: string;
@@ -50,8 +51,19 @@ export const productsService = {
       isActive?: boolean;
     },
   ): Promise<ProductItem> {
-    const { data } = await authAxiosService.patch<ProductItem>(`/products/${id}`, payload);
-    return data;
+    try {
+      const { data } = await authAxiosService.put<ProductItem>(`/products/${id}`, payload);
+      return data;
+    } catch (error) {
+      const status = (error as AxiosError)?.response?.status;
+      if (status !== 404 && status !== 405) {
+        throw error;
+      }
+      const { data } = await authAxiosService.put<ProductItem[]>("/products/update", {
+        items: [{ id, ...payload }],
+      });
+      return data[0];
+    }
   },
   async delete(id: string): Promise<void> {
     await authAxiosService.delete("/products/delete", {

@@ -1,18 +1,19 @@
 "use client";
 
-import { AppstoreOutlined, RobotOutlined, ShopOutlined } from "@ant-design/icons";
+import { ShopOutlined } from "@ant-design/icons";
 import { Layout, Menu } from "antd";
 import { usePathname, useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 
 const { Sider } = Layout;
-
-const menuItems = [
-    { key: "/shops", icon: <ShopOutlined />, label: "Shops" },
-];
 
 export function Sidebar() {
     const router = useRouter();
     const pathname = usePathname();
+    const t = useTranslations("sidebar");
+    const menuItems = [
+        { key: "/shops", icon: <ShopOutlined />, label: t("shops") },
+    ];
 
     return (
         <Sider

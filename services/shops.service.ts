@@ -1,4 +1,5 @@
 import { authAxiosService } from "./axios.service";
+import type { AxiosError } from "axios";
 
 export interface ShopItem {
   id: string;
@@ -18,6 +19,7 @@ export interface CreateShopInput {
 
 export const shopsService = {
   async list(params?: {
+    userId?: string;
     includeDeleted?: boolean;
     limit?: number;
     search?: string;
@@ -45,8 +47,19 @@ export const shopsService = {
     return data;
   },
   async update(id: string, payload: CreateShopInput): Promise<ShopItem> {
-    const { data } = await authAxiosService.patch<ShopItem>(`/shops/${id}`, payload);
-    return data;
+    try {
+      const { data } = await authAxiosService.put<ShopItem>(`/shops/${id}`, payload);
+      return data;
+    } catch (error) {
+      const status = (error as AxiosError)?.response?.status;
+      if (status !== 404 && status !== 405) {
+        throw error;
+      }
+      const { data } = await authAxiosService.put<ShopItem[]>("/shops/update", {
+        items: [{ id, ...payload }],
+      });
+      return data[0];
+    }
   },
   async delete(id: string): Promise<void> {
     await authAxiosService.delete("/shops/delete", {

@@ -1,10 +1,13 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, Input, Select, Tabs, Table, Button, Drawer, Form, Space } from "antd";
 import { useParams } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { AuthGuard } from "@/components/auth/AuthGuard";
+import { TableSkeleton } from "@/components/common/TableSkeleton";
 import { shopsService } from "@/services/shops.service";
 import { productsService, type ProductItem } from "@/services/products.service";
 import { faqsService, type FaqItem } from "@/services/faqs.service";
@@ -28,6 +31,10 @@ export default function ShopDetailPage() {
   const [currentFaq, setCurrentFaq] = useState<FaqItem | null>(null);
   const [faqDetailForm] = Form.useForm();
   const [selectedFaqIds, setSelectedFaqIds] = useState<string[]>([]);
+  const tCommon = useTranslations("common");
+  const tShopDetail = useTranslations("shopDetail");
+  const tProducts = useTranslations("shopDetail.products");
+  const tFaqs = useTranslations("shopDetail.faqs");
 
   const shopQuery = useQuery({
     queryKey: ["shop-detail", shopId],
@@ -149,12 +156,19 @@ export default function ShopDetailPage() {
   return (
     <AuthGuard>
       <div className="p-4 md:p-6">
-        <Card title={`Shop: ${shopQuery.data?.name ?? shopId}`}>
+        <Card
+          title={tShopDetail("title", { name: shopQuery.data?.name ?? shopId })}
+          extra={
+            <Link href={`/shops/${shopId}/chat`}>
+              <Button type="default">{tShopDetail("goToChat")}</Button>
+            </Link>
+          }
+        >
           <Tabs
             items={[
               {
                 key: "products",
-                label: "Products",
+                label: tShopDetail("productsTab"),
                 children: (
                   <div>
                     <div className="mb-4 flex gap-3 items-center">
@@ -162,20 +176,20 @@ export default function ShopDetailPage() {
                         allowClear
                         value={productSearch}
                         onChange={(e) => setProductSearch(e.target.value)}
-                        placeholder="Search products"
+                        placeholder={tProducts("searchPlaceholder")}
                       />
                       <Select
                         value={productActive}
                         onChange={setProductActive}
                         style={{ width: 180 }}
                         options={[
-                          { value: "all", label: "All" },
-                          { value: "true", label: "Active" },
-                          { value: "false", label: "Inactive" },
+                          { value: "all", label: tCommon("all") },
+                          { value: "true", label: tCommon("active") },
+                          { value: "false", label: tCommon("inactive") },
                         ]}
                       />
                       <Button type="primary" onClick={() => setProductDrawerOpen(true)}>
-                        Add products
+                        {tProducts("add")}
                       </Button>
                       <Button
                         danger
@@ -186,57 +200,74 @@ export default function ShopDetailPage() {
                           deleteManyProductsMutation.mutate(selectedProductIds);
                         }}
                       >
-                        Delete selected
+                        {tCommon("deleteSelected")}
                       </Button>
                     </div>
-                    <Table<ProductItem>
-                      rowKey="id"
-                      dataSource={products}
-                      pagination={false}
-                      rowSelection={{
-                        selectedRowKeys: selectedProductIds,
-                        onChange: (keys) => setSelectedProductIds(keys as string[]),
-                      }}
-                      columns={[
-                        { title: "Name", dataIndex: "name" },
-                        { title: "Price", dataIndex: "price" },
-                        { title: "Search Content", dataIndex: "searchContent" },
-                        {
-                          title: "Active",
-                          dataIndex: "isActive",
-                          render: (value: boolean) => (value ? "Yes" : "No"),
-                        },
-                        {
-                          title: "Actions",
-                          key: "actions",
-                          render: (_, product) => (
-                            <Button
-                              size="small"
-                              onClick={() => {
-                                setCurrentProduct(product);
-                                productDetailForm.setFieldsValue({
-                                  name: product.name,
-                                  price: product.price,
-                                  thumbnailUrl: product.thumbnailUrl || "",
-                                  imageUrlsText: (product.imageUrls || []).join(", "),
-                                  searchContent: product.searchContent || "",
-                                  isActive: product.isActive,
-                                });
-                                setProductDetailOpen(true);
-                              }}
-                            >
-                              Detail
-                            </Button>
-                          ),
-                        },
-                      ]}
-                    />
+                    {productsQuery.isFetching ? (
+                      <TableSkeleton
+                        columns={[
+                          { title: tCommon("name") },
+                          { title: tProducts("price") },
+                          { title: tCommon("searchContent") },
+                          { title: tCommon("active") },
+                          { title: tCommon("actions") },
+                        ]}
+                      />
+                    ) : (
+                      <Table<ProductItem>
+                        rowKey="id"
+                        dataSource={products}
+                        pagination={{ pageSize: 10 }}
+                        rowSelection={{
+                          selectedRowKeys: selectedProductIds,
+                          onChange: (keys) => setSelectedProductIds(keys as string[]),
+                        }}
+                        columns={[
+                          { title: tCommon("name"), dataIndex: "name" },
+                          { title: tProducts("price"), dataIndex: "price" },
+                          {
+                            title: tCommon("searchContent"),
+                            dataIndex: "searchContent",
+                            ellipsis: true,
+                            render: (value?: string | null) => value || "-",
+                          },
+                          {
+                            title: tCommon("active"),
+                            dataIndex: "isActive",
+                            render: (value: boolean) => (value ? tProducts("yes") : tProducts("no")),
+                          },
+                          {
+                            title: tCommon("actions"),
+                            key: "actions",
+                            render: (_, product) => (
+                              <Button
+                                size="small"
+                                onClick={() => {
+                                  setCurrentProduct(product);
+                                  productDetailForm.setFieldsValue({
+                                    name: product.name,
+                                    price: product.price,
+                                    thumbnailUrl: product.thumbnailUrl || "",
+                                    imageUrlsText: (product.imageUrls || []).join(", "),
+                                    searchContent: product.searchContent || "",
+                                    isActive: product.isActive,
+                                  });
+                                  setProductDetailOpen(true);
+                                }}
+                              >
+                                {tCommon("detail")}
+                              </Button>
+                            ),
+                          },
+                        ]}
+                      />
+                    )}
                   </div>
                 ),
               },
               {
                 key: "faqs",
-                label: "FAQs",
+                label: tShopDetail("faqsTab"),
                 children: (
                   <div>
                     <div className="mb-4 flex gap-3 items-center">
@@ -244,10 +275,10 @@ export default function ShopDetailPage() {
                         allowClear
                         value={faqSearch}
                         onChange={(e) => setFaqSearch(e.target.value)}
-                        placeholder="Search FAQs"
+                        placeholder={tFaqs("searchPlaceholder")}
                       />
                       <Button type="primary" onClick={() => setFaqDrawerOpen(true)}>
-                        Add FAQs
+                        {tFaqs("add")}
                       </Button>
                       <Button
                         danger
@@ -258,41 +289,51 @@ export default function ShopDetailPage() {
                           deleteManyFaqsMutation.mutate(selectedFaqIds);
                         }}
                       >
-                        Delete selected
+                        {tCommon("deleteSelected")}
                       </Button>
                     </div>
-                    <Table<FaqItem>
-                      rowKey="id"
-                      dataSource={faqs}
-                      pagination={false}
-                      rowSelection={{
-                        selectedRowKeys: selectedFaqIds,
-                        onChange: (keys) => setSelectedFaqIds(keys as string[]),
-                      }}
-                      columns={[
-                        { title: "Question", dataIndex: "question" },
-                        { title: "Answer", dataIndex: "answer" },
-                        {
-                          title: "Actions",
-                          key: "actions",
-                          render: (_, faq) => (
-                            <Button
-                              size="small"
-                              onClick={() => {
-                                setCurrentFaq(faq);
-                                faqDetailForm.setFieldsValue({
-                                  question: faq.question,
-                                  answer: faq.answer,
-                                });
-                                setFaqDetailOpen(true);
-                              }}
-                            >
-                              Detail
-                            </Button>
-                          ),
-                        },
-                      ]}
-                    />
+                    {faqsQuery.isFetching ? (
+                      <TableSkeleton
+                        columns={[
+                          { title: tFaqs("question") },
+                          { title: tFaqs("answer") },
+                          { title: tCommon("actions") },
+                        ]}
+                      />
+                    ) : (
+                      <Table<FaqItem>
+                        rowKey="id"
+                        dataSource={faqs}
+                        pagination={{ pageSize: 10 }}
+                        rowSelection={{
+                          selectedRowKeys: selectedFaqIds,
+                          onChange: (keys) => setSelectedFaqIds(keys as string[]),
+                        }}
+                        columns={[
+                          { title: tFaqs("question"), dataIndex: "question" },
+                          { title: tFaqs("answer"), dataIndex: "answer" },
+                          {
+                            title: tCommon("actions"),
+                            key: "actions",
+                            render: (_, faq) => (
+                              <Button
+                                size="small"
+                                onClick={() => {
+                                  setCurrentFaq(faq);
+                                  faqDetailForm.setFieldsValue({
+                                    question: faq.question,
+                                    answer: faq.answer,
+                                  });
+                                  setFaqDetailOpen(true);
+                                }}
+                              >
+                                {tCommon("detail")}
+                              </Button>
+                            ),
+                          },
+                        ]}
+                      />
+                    )}
                   </div>
                 ),
               },
@@ -301,9 +342,9 @@ export default function ShopDetailPage() {
         </Card>
 
         <Drawer
-          title="Add products"
+          title={tProducts("drawerAddTitle")}
           placement="left"
-          width={480}
+          size="large"
           open={productDrawerOpen}
           onClose={() => setProductDrawerOpen(false)}
           destroyOnClose
@@ -356,44 +397,44 @@ export default function ShopDetailPage() {
             <Form.List name="items">
               {(fields, { add, remove }) => (
                 <>
-                  <Space direction="vertical" style={{ width: "100%" }}>
+                  <Space orientation="vertical" style={{ width: "100%" }}>
                     {fields.map((field, index) => (
                       <Card
                         key={field.key}
                         size="small"
-                        title={`Product ${index + 1}`}
+                        title={tProducts("productN", { index: index + 1 })}
                         extra={
                           fields.length > 1 ? (
                             <Button size="small" danger onClick={() => remove(field.name)}>
-                              Remove
+                              {tCommon("remove")}
                             </Button>
                           ) : null
                         }
                       >
                         <Form.Item
-                          label="Name"
+                          label={tCommon("name")}
                           name={[field.name, "name"]}
-                          rules={[{ required: true, message: "Name is required" }]}
+                          rules={[{ required: true, message: tProducts("form.nameRequired") }]}
                         >
                           <Input />
                         </Form.Item>
                         <Form.Item
-                          label="Price"
+                          label={tProducts("price")}
                           name={[field.name, "price"]}
-                          rules={[{ required: true, message: "Price is required" }]}
+                          rules={[{ required: true, message: tProducts("form.priceRequired") }]}
                         >
                           <Input type="number" min={0} />
                         </Form.Item>
-                        <Form.Item label="Thumbnail URL" name={[field.name, "thumbnailUrl"]}>
+                        <Form.Item label={tProducts("thumbnailUrl")} name={[field.name, "thumbnailUrl"]}>
                           <Input />
                         </Form.Item>
                         <Form.Item
-                          label="Image URLs (comma separated)"
+                          label={tProducts("imageUrlsComma")}
                           name={[field.name, "imageUrlsText"]}
                         >
                           <Input.TextArea rows={2} />
                         </Form.Item>
-                        <Form.Item label="Search content" name={[field.name, "searchContent"]}>
+                        <Form.Item label={tCommon("searchContent")} name={[field.name, "searchContent"]}>
                           <Input.TextArea rows={2} />
                         </Form.Item>
                       </Card>
@@ -412,19 +453,19 @@ export default function ShopDetailPage() {
                       })
                     }
                   >
-                    Add another product
+                    {tProducts("addAnother")}
                   </Button>
                 </>
               )}
             </Form.List>
             <div className="mt-6 flex justify-end gap-2">
-              <Button onClick={() => setProductDrawerOpen(false)}>Cancel</Button>
+              <Button onClick={() => setProductDrawerOpen(false)}>{tCommon("cancel")}</Button>
               <Button
                 type="primary"
                 htmlType="submit"
                 loading={createProductsMutation.isPending}
               >
-                Save
+                {tCommon("save")}
               </Button>
             </div>
           </Form>
@@ -432,10 +473,12 @@ export default function ShopDetailPage() {
 
         <Drawer
           title={
-            currentProduct ? `Product detail: ${currentProduct.name}` : "Product detail"
+            currentProduct
+              ? tProducts("drawerDetailTitle", { name: currentProduct.name })
+              : tProducts("drawerDetailFallbackTitle")
           }
           placement="left"
-          width={480}
+          size="large"
           open={productDetailOpen}
           onClose={() => {
             setProductDetailOpen(false);
@@ -475,26 +518,26 @@ export default function ShopDetailPage() {
             }}
           >
             <Form.Item
-              label="Name"
+              label={tCommon("name")}
               name="name"
-              rules={[{ required: true, message: "Name is required" }]}
+              rules={[{ required: true, message: tProducts("form.nameRequired") }]}
             >
               <Input />
             </Form.Item>
             <Form.Item
-              label="Price"
+              label={tProducts("price")}
               name="price"
-              rules={[{ required: true, message: "Price is required" }]}
+              rules={[{ required: true, message: tProducts("form.priceRequired") }]}
             >
               <Input type="number" min={0} />
             </Form.Item>
-            <Form.Item label="Thumbnail URL" name="thumbnailUrl">
+            <Form.Item label={tProducts("thumbnailUrl")} name="thumbnailUrl">
               <Input />
             </Form.Item>
-            <Form.Item label="Image URLs (comma separated)" name="imageUrlsText">
+            <Form.Item label={tProducts("imageUrlsComma")} name="imageUrlsText">
               <Input.TextArea rows={2} />
             </Form.Item>
-            <Form.Item label="Search content" name="searchContent">
+            <Form.Item label={tCommon("searchContent")} name="searchContent">
               <Input.TextArea rows={2} />
             </Form.Item>
 
@@ -507,7 +550,7 @@ export default function ShopDetailPage() {
                   deleteProductMutation.mutate(currentProduct.id);
                 }}
               >
-                Delete this product
+                {tProducts("deleteThis")}
               </Button>
               <Space>
                 <Button
@@ -517,14 +560,14 @@ export default function ShopDetailPage() {
                     productDetailForm.resetFields();
                   }}
                 >
-                  Cancel
+                  {tCommon("cancel")}
                 </Button>
                 <Button
                   type="primary"
                   htmlType="submit"
                   loading={updateProductMutation.isPending}
                 >
-                  Save changes
+                  {tCommon("saveChanges")}
                 </Button>
               </Space>
             </div>
@@ -532,9 +575,9 @@ export default function ShopDetailPage() {
         </Drawer>
 
         <Drawer
-          title="Add FAQs"
+          title={tFaqs("drawerAddTitle")}
           placement="left"
-          width={480}
+          size="large"
           open={faqDrawerOpen}
           onClose={() => setFaqDrawerOpen(false)}
           destroyOnClose
@@ -563,31 +606,31 @@ export default function ShopDetailPage() {
             <Form.List name="items">
               {(fields, { add, remove }) => (
                 <>
-                  <Space direction="vertical" style={{ width: "100%" }}>
+                  <Space orientation="vertical" style={{ width: "100%" }}>
                     {fields.map((field, index) => (
                       <Card
                         key={field.key}
                         size="small"
-                        title={`FAQ ${index + 1}`}
+                        title={tFaqs("faqN", { index: index + 1 })}
                         extra={
                           fields.length > 1 ? (
                             <Button size="small" danger onClick={() => remove(field.name)}>
-                              Remove
+                              {tCommon("remove")}
                             </Button>
                           ) : null
                         }
                       >
                         <Form.Item
-                          label="Question"
+                          label={tFaqs("question")}
                           name={[field.name, "question"]}
-                          rules={[{ required: true, message: "Question is required" }]}
+                          rules={[{ required: true, message: tFaqs("form.questionRequired") }]}
                         >
                           <Input />
                         </Form.Item>
                         <Form.Item
-                          label="Answer"
+                          label={tFaqs("answer")}
                           name={[field.name, "answer"]}
-                          rules={[{ required: true, message: "Answer is required" }]}
+                          rules={[{ required: true, message: tFaqs("form.answerRequired") }]}
                         >
                           <Input.TextArea rows={3} />
                         </Form.Item>
@@ -604,28 +647,28 @@ export default function ShopDetailPage() {
                       })
                     }
                   >
-                    Add another FAQ
+                    {tFaqs("addAnother")}
                   </Button>
                 </>
               )}
             </Form.List>
             <div className="mt-6 flex justify-end gap-2">
-              <Button onClick={() => setFaqDrawerOpen(false)}>Cancel</Button>
+              <Button onClick={() => setFaqDrawerOpen(false)}>{tCommon("cancel")}</Button>
               <Button
                 type="primary"
                 htmlType="submit"
                 loading={createFaqsMutation.isPending}
               >
-                Save
+                {tCommon("save")}
               </Button>
             </div>
           </Form>
         </Drawer>
 
         <Drawer
-          title={currentFaq ? `FAQ detail` : "FAQ detail"}
+          title={tFaqs("drawerDetailTitle")}
           placement="left"
-          width={480}
+          size="large"
           open={faqDetailOpen}
           onClose={() => {
             setFaqDetailOpen(false);
@@ -649,16 +692,16 @@ export default function ShopDetailPage() {
             }}
           >
             <Form.Item
-              label="Question"
+              label={tFaqs("question")}
               name="question"
-              rules={[{ required: true, message: "Question is required" }]}
+              rules={[{ required: true, message: tFaqs("form.questionRequired") }]}
             >
               <Input />
             </Form.Item>
             <Form.Item
-              label="Answer"
+              label={tFaqs("answer")}
               name="answer"
-              rules={[{ required: true, message: "Answer is required" }]}
+              rules={[{ required: true, message: tFaqs("form.answerRequired") }]}
             >
               <Input.TextArea rows={3} />
             </Form.Item>
@@ -672,7 +715,7 @@ export default function ShopDetailPage() {
                   deleteFaqMutation.mutate(currentFaq.id);
                 }}
               >
-                Delete this FAQ
+                {tFaqs("deleteThis")}
               </Button>
               <Space>
                 <Button
@@ -682,14 +725,14 @@ export default function ShopDetailPage() {
                     faqDetailForm.resetFields();
                   }}
                 >
-                  Cancel
+                  {tCommon("cancel")}
                 </Button>
                 <Button
                   type="primary"
                   htmlType="submit"
                   loading={updateFaqMutation.isPending}
                 >
-                  Save changes
+                  {tCommon("saveChanges")}
                 </Button>
               </Space>
             </div>

@@ -1,4 +1,5 @@
 import { authAxiosService } from "./axios.service";
+import type { AxiosError } from "axios";
 
 export interface FaqItem {
   id: string;
@@ -37,8 +38,19 @@ export const faqsService = {
       answer?: string;
     },
   ): Promise<FaqItem> {
-    const { data } = await authAxiosService.patch<FaqItem>(`/faqs/${id}`, payload);
-    return data;
+    try {
+      const { data } = await authAxiosService.put<FaqItem>(`/faqs/${id}`, payload);
+      return data;
+    } catch (error) {
+      const status = (error as AxiosError)?.response?.status;
+      if (status !== 404 && status !== 405) {
+        throw error;
+      }
+      const { data } = await authAxiosService.put<FaqItem[]>("/faqs/update", {
+        items: [{ id, ...payload }],
+      });
+      return data[0];
+    }
   },
   async delete(id: string): Promise<void> {
     await authAxiosService.delete("/faqs/delete", {

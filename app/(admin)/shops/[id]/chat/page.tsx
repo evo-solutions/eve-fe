@@ -3,77 +3,97 @@
 import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import { AuthGuard } from "@/components/auth/AuthGuard";
-import { aiTestService } from "@/services/ai-test.service";
+import { chatService } from "@/services/chat.service";
+import { useTranslations } from "next-intl";
+import { useParams } from "next/navigation";
 
 interface Message {
   id: string;
-  message: string;
-  type: "system" | "human";
+  content: string;
+  role: "user" | "assistant";
   timestamp: Date;
-  image_urls: string[];
+  imageUrls: string[];
 }
 
-export default function Eve() {
+export default function ShopChatPage() {
+  const t = useTranslations("shopDetail.chat");
+  const params = useParams<{ id: string }>();
+  const shopId = params.id;
+
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputText, setInputText] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [pageId, setPageId] = useState("9a807f15-5561-4132-bb97-61a0aabb848d");
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isLoading]);
 
-  const sendMessageToBackend = async (allMessages: Message[]) => {
-    const response = await aiTestService.chat({
-      messages: allMessages.map((msg) => ({
-        message: msg.message,
-        type: msg.type,
-        image_urls: msg.image_urls,
-      })),
-      page_id: pageId.trim() || undefined,
+  const parseAssistantContent = (raw: string) => {
+    const markdownImageRegex = /!\[[^\]]*]\((https?:\/\/[^\s)]+)\)/g;
+    const imageUrls: string[] = [];
+
+    let textWithoutMarkdownImage = raw.replace(markdownImageRegex, (_, url: string) => {
+      imageUrls.push(url);
+      return "";
     });
 
-    const content = (response.content || "")
-      .replace(/\\n/g, "\n")
-      .replace(/\n{3,}/g, "\n\n")
-      .trim();
+    // Catch direct links that are on their own line (common AI output style)
+    const lines = textWithoutMarkdownImage.split("\n");
+    const keptLines: string[] = [];
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (/^https?:\/\/\S+$/i.test(trimmed)) {
+        imageUrls.push(trimmed);
+      } else {
+        keptLines.push(line);
+      }
+    }
 
-    const nextMessages: Message[] = [];
+    const uniqueImageUrls = [...new Set(imageUrls)];
+    const text = keptLines.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+
+    return { text, imageUrls: uniqueImageUrls };
+  };
+
+  const sendMessageToBackend = async (history: Message[]) => {
+    if (!shopId) return;
+
+    const { content } = await chatService.complete({
+      shopId,
+      messages: history.map((msg) => ({
+        role: msg.role,
+        content: msg.content,
+      })),
+    });
+
+    const normalized = (content ?? "").replace(/\\n/g, "\n").trim();
+    const { text, imageUrls } = parseAssistantContent(normalized);
+
+    if (!text && imageUrls.length === 0) return;
+
     const now = Date.now();
-    if (content) {
-      nextMessages.push({
-        id: `${now}-text`,
-        message: content,
-        type: "system",
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: `${now}-assistant`,
+        content: text,
+        role: "assistant",
         timestamp: new Date(),
-        image_urls: [],
-      });
-    }
-
-    if (Array.isArray(response.attach_files) && response.attach_files.length) {
-      nextMessages.push({
-        id: `${now}-images`,
-        message: "",
-        type: "system",
-        timestamp: new Date(),
-        image_urls: response.attach_files.slice(0, 10),
-      });
-    }
-
-    if (nextMessages.length) {
-      setMessages((prev) => [...prev, ...nextMessages]);
-    }
+        imageUrls,
+      },
+    ]);
   };
 
   const sendMessage = async () => {
-    if (!inputText.trim() || isLoading) return;
+    if (!inputText.trim() || isLoading || !shopId) return;
+
     const userMessage: Message = {
       id: Date.now().toString(),
-      message: inputText.trim(),
-      type: "human",
+      content: inputText.trim(),
+      role: "user",
       timestamp: new Date(),
-      image_urls: [],
+      imageUrls: [],
     };
     const updatedMessages = [...messages, userMessage];
     setMessages(updatedMessages);
@@ -91,20 +111,8 @@ export default function Eve() {
       <div className="flex h-full min-h-0 flex-col bg-background text-foreground">
         <div className="flex items-start gap-3 border-b border-border bg-background px-4 py-3 shadow-sm">
           <div className="flex-1">
-            <h2 className="text-base font-semibold">AI Chat Test</h2>
-            <p className="text-xs text-foreground/60">
-              Test luong AI backend voi lich su tin nhan.
-            </p>
-          </div>
-          <div className="w-full max-w-[480px]">
-            <label className="mb-1 block text-xs text-foreground/60">Page ID</label>
-            <input
-              type="text"
-              value={pageId}
-              onChange={(e) => setPageId(e.target.value)}
-              className="w-full rounded-md border border-border bg-background p-2 text-foreground placeholder:text-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary/30"
-              placeholder="Nhap page id (optional)"
-            />
+            <h2 className="text-base font-semibold">{t("title")}</h2>
+            <p className="text-xs text-foreground/60">{t("subtitle")}</p>
           </div>
         </div>
 
@@ -112,33 +120,37 @@ export default function Eve() {
           {messages.map((message) => (
             <div
               key={message.id}
-              className={`flex ${message.type === "human" ? "justify-end" : "justify-start"}`}
+              className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}
             >
               <div
-                className={`max-w-[80%] rounded-lg px-4 py-2 ${message.type === "human"
-                  ? "bg-primary text-background"
-                  : "border border-border bg-background text-foreground"
-                  }`}
+                className={`max-w-[80%] rounded-lg px-4 py-2 ${
+                  message.role === "user"
+                    ? "bg-primary text-background"
+                    : "border border-border bg-background text-foreground"
+                }`}
               >
-                {message.image_urls.length > 0 && (
+                {message.imageUrls.length > 0 && (
                   <div className="mb-2 flex flex-wrap gap-2">
-                    {message.image_urls.map((imageUrl, index) => (
+                    {message.imageUrls.map((url, index) => (
                       <Image
-                        key={`${message.id}-${index}`}
-                        src={imageUrl}
-                        alt={`Message attachment ${index + 1}`}
-                        width={100}
-                        height={100}
-                        className="h-[100px] w-[100px] rounded object-cover"
+                        key={`${message.id}-${url}-${index}`}
+                        src={url}
+                        alt={`image-${index + 1}`}
+                        width={120}
+                        height={120}
+                        className="h-[120px] w-[120px] rounded object-cover"
                         unoptimized
                       />
                     ))}
                   </div>
                 )}
-                <div className="whitespace-pre-line text-sm">{message.message}</div>
+                <div className="whitespace-pre-line text-sm">{message.content}</div>
                 <p
-                  className={`mt-1 text-xs ${message.type === "human" ? "text-background/80" : "text-foreground/60"
-                    }`}
+                  className={`mt-1 text-xs ${
+                    message.role === "user"
+                      ? "text-background/80"
+                      : "text-foreground/60"
+                  }`}
                 >
                   {message.timestamp.toLocaleTimeString([], {
                     hour: "2-digit",
@@ -181,18 +193,19 @@ export default function Eve() {
                     void sendMessage();
                   }
                 }}
-                placeholder="Nhap tin nhan..."
+                placeholder={t("messagePlaceholder")}
                 className="w-full resize-none rounded-lg border border-border bg-background px-4 py-3 text-foreground placeholder:text-foreground/50 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-primary/30"
                 rows={1}
                 style={{ minHeight: "44px", maxHeight: "120px" }}
               />
             </div>
             <button
+              type="button"
               onClick={() => void sendMessage()}
-              disabled={!inputText.trim() || isLoading}
+              disabled={!inputText.trim() || isLoading || !shopId}
               className="h-[50px] rounded-lg bg-primary px-6 py-3 text-background transition-colors hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              Send
+              {t("send")}
             </button>
           </div>
         </div>
