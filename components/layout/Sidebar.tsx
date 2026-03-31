@@ -1,14 +1,13 @@
 "use client";
 
-import { AppstoreOutlined, RobotOutlined } from "@ant-design/icons";
+import { AppstoreOutlined, RobotOutlined, ShopOutlined } from "@ant-design/icons";
 import { Layout, Menu } from "antd";
 import { usePathname, useRouter } from "next/navigation";
 
 const { Sider } = Layout;
 
 const menuItems = [
-    { key: "/pages", icon: <AppstoreOutlined />, label: "Pages" },
-    { key: "/ai-test", icon: <RobotOutlined />, label: "AI Test" },
+    { key: "/shops", icon: <ShopOutlined />, label: "Shops" },
 ];
 
 export function Sidebar() {
@@ -23,11 +22,9 @@ export function Sidebar() {
             <Menu
                 mode="inline"
                 selectedKeys={[
-                    pathname.startsWith("/pages")
-                        ? "/pages"
-                        : pathname.startsWith("/ai-test")
-                            ? "/ai-test"
-                            : "",
+                    pathname.startsWith("/shops")
+                        ? "/shops"
+                        : "",
                 ]}
                 items={menuItems}
                 onClick={({ key }) => {

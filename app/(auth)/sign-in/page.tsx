@@ -22,7 +22,7 @@ export default function SignIn() {
     setLoading(true);
     try {
       await authService.signIn({ email: email.trim(), password });
-      router.push("/pages");
+      router.push("/shops");
       router.refresh();
     } catch (err: unknown) {
       const msg =
