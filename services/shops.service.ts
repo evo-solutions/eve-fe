@@ -24,8 +24,13 @@ export const shopsService = {
     limit?: number;
     search?: string;
     isActive?: boolean;
+    signal?: AbortSignal;
   }): Promise<ShopItem[]> {
-    const { data } = await authAxiosService.get<ShopItem[]>("/shops", { params });
+    const { signal, ...query } = params ?? {};
+    const { data } = await authAxiosService.get<ShopItem[]>("/shops", {
+      params: query,
+      signal,
+    });
     return data;
   },
   async detail(id: string): Promise<ShopItem> {

@@ -21,8 +21,13 @@ export const productsService = {
     limit?: number;
     search?: string;
     isActive?: boolean;
+    signal?: AbortSignal;
   }): Promise<ProductItem[]> {
-    const { data } = await authAxiosService.get<ProductItem[]>("/products", { params });
+    const { signal, ...query } = params ?? {};
+    const { data } = await authAxiosService.get<ProductItem[]>("/products", {
+      params: query,
+      signal,
+    });
     return data;
   },
 

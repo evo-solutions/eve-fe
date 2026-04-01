@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button, Card, Drawer, Input, Select, Space, Switch, Form, Table } from "antd";
 import { useRouter } from "next/navigation";
@@ -13,6 +14,7 @@ import { shopsService, type ShopItem, type CreateShopInput } from "@/services/sh
 export default function ShopsPage() {
   const router = useRouter();
   const [search, setSearch] = useState("");
+  const debouncedSearch = useDebouncedValue(search, 350);
   const [isActive, setIsActive] = useState<"all" | "true" | "false">("all");
   const [createOpen, setCreateOpen] = useState(false);
   const [detailOpen, setDetailOpen] = useState(false);
@@ -26,13 +28,14 @@ export default function ShopsPage() {
   const tCommon = useTranslations("common");
 
   const listQuery = useQuery({
-    queryKey: ["shops", user?.id, search, isActive],
-    queryFn: () =>
+    queryKey: ["shops", user?.id, debouncedSearch, isActive],
+    queryFn: ({ signal }) =>
       shopsService.list({
         userId: user?.id,
         limit: 100,
-        search: search || undefined,
+        search: debouncedSearch || undefined,
         isActive: isActive === "all" ? undefined : isActive === "true",
+        signal,
       }),
     enabled: !!user?.id,
   });

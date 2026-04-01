@@ -16,8 +16,13 @@ export const faqsService = {
     includeDeleted?: boolean;
     limit?: number;
     search?: string;
+    signal?: AbortSignal;
   }): Promise<FaqItem[]> {
-    const { data } = await authAxiosService.get<FaqItem[]>("/faqs", { params });
+    const { signal, ...query } = params ?? {};
+    const { data } = await authAxiosService.get<FaqItem[]>("/faqs", {
+      params: query,
+      signal,
+    });
     return data;
   },
 

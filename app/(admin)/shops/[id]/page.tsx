@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, Input, Select, Tabs, Table, Button, Drawer, Form, Space } from "antd";
@@ -16,8 +17,10 @@ export default function ShopDetailPage() {
   const params = useParams<{ id: string }>();
   const shopId = params.id;
   const [productSearch, setProductSearch] = useState("");
+  const debouncedProductSearch = useDebouncedValue(productSearch, 350);
   const [productActive, setProductActive] = useState<"all" | "true" | "false">("all");
   const [faqSearch, setFaqSearch] = useState("");
+  const debouncedFaqSearch = useDebouncedValue(faqSearch, 350);
   const [productDrawerOpen, setProductDrawerOpen] = useState(false);
   const [faqDrawerOpen, setFaqDrawerOpen] = useState(false);
   const [productForm] = Form.useForm();
@@ -43,24 +46,26 @@ export default function ShopDetailPage() {
   });
 
   const productsQuery = useQuery({
-    queryKey: ["shop-products", shopId, productSearch, productActive],
-    queryFn: () =>
+    queryKey: ["shop-products", shopId, debouncedProductSearch, productActive],
+    queryFn: ({ signal }) =>
       productsService.list({
         shopId,
         limit: 100,
-        search: productSearch || undefined,
+        search: debouncedProductSearch || undefined,
         isActive: productActive === "all" ? undefined : productActive === "true",
+        signal,
       }),
     enabled: !!shopId,
   });
 
   const faqsQuery = useQuery({
-    queryKey: ["shop-faqs", shopId, faqSearch],
-    queryFn: () =>
+    queryKey: ["shop-faqs", shopId, debouncedFaqSearch],
+    queryFn: ({ signal }) =>
       faqsService.list({
         shopId,
         limit: 100,
-        search: faqSearch || undefined,
+        search: debouncedFaqSearch || undefined,
+        signal,
       }),
     enabled: !!shopId,
   });
