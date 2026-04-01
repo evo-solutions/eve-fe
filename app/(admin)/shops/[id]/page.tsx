@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Card, Input, Select, Tabs, Table, Button, Drawer, Form, Space } from "antd";
+import { Card, Input, Switch, Tabs, Table, Button, Drawer, Form, Space } from "antd";
 import { useParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { AuthGuard } from "@/components/auth/AuthGuard";
@@ -18,7 +18,6 @@ export default function ShopDetailPage() {
   const shopId = params.id;
   const [productSearch, setProductSearch] = useState("");
   const debouncedProductSearch = useDebouncedValue(productSearch, 350);
-  const [productActive, setProductActive] = useState<"all" | "true" | "false">("all");
   const [faqSearch, setFaqSearch] = useState("");
   const debouncedFaqSearch = useDebouncedValue(faqSearch, 350);
   const [productDrawerOpen, setProductDrawerOpen] = useState(false);
@@ -39,6 +38,14 @@ export default function ShopDetailPage() {
   const tProducts = useTranslations("shopDetail.products");
   const tFaqs = useTranslations("shopDetail.faqs");
 
+  const refetchAllShopFaqLists = () =>
+    queryClient.refetchQueries({
+      predicate: (q) =>
+        Array.isArray(q.queryKey) &&
+        q.queryKey[0] === "shop-faqs" &&
+        q.queryKey[1] === shopId,
+    });
+
   const shopQuery = useQuery({
     queryKey: ["shop-detail", shopId],
     queryFn: () => shopsService.detail(shopId),
@@ -46,13 +53,12 @@ export default function ShopDetailPage() {
   });
 
   const productsQuery = useQuery({
-    queryKey: ["shop-products", shopId, debouncedProductSearch, productActive],
+    queryKey: ["shop-products", shopId, debouncedProductSearch],
     queryFn: ({ signal }) =>
       productsService.list({
         shopId,
         limit: 100,
         search: debouncedProductSearch || undefined,
-        isActive: productActive === "all" ? undefined : productActive === "true",
         signal,
       }),
     enabled: !!shopId,
@@ -123,17 +129,31 @@ export default function ShopDetailPage() {
   const createFaqsMutation = useMutation({
     mutationFn: faqsService.createMany,
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["shop-faqs", shopId] });
+      await refetchAllShopFaqLists();
       setFaqDrawerOpen(false);
       faqForm.resetFields();
     },
   });
 
   const updateFaqMutation = useMutation({
-    mutationFn: (payload: { id: string; data: { question?: string; answer?: string } }) =>
-      faqsService.update(payload.id, payload.data),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["shop-faqs", shopId] });
+    mutationFn: (payload: {
+      id: string;
+      data: { question?: string; answer?: string; isActive?: boolean };
+    }) => faqsService.update(payload.id, payload.data),
+    onSuccess: async (updated) => {
+      queryClient.setQueriesData<FaqItem[]>(
+        {
+          predicate: (q) =>
+            Array.isArray(q.queryKey) &&
+            q.queryKey[0] === "shop-faqs" &&
+            q.queryKey[1] === shopId,
+        },
+        (old) => {
+          if (!old) return old;
+          return old.map((f) => (f.id === updated.id ? { ...f, ...updated } : f));
+        },
+      );
+      await refetchAllShopFaqLists();
       setFaqDetailOpen(false);
       setCurrentFaq(null);
       faqDetailForm.resetFields();
@@ -143,7 +163,7 @@ export default function ShopDetailPage() {
   const deleteFaqMutation = useMutation({
     mutationFn: (id: string) => faqsService.delete(id),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["shop-faqs", shopId] });
+      await refetchAllShopFaqLists();
       setFaqDetailOpen(false);
       setCurrentFaq(null);
       faqDetailForm.resetFields();
@@ -153,7 +173,7 @@ export default function ShopDetailPage() {
   const deleteManyFaqsMutation = useMutation({
     mutationFn: (ids: string[]) => faqsService.deleteMany(ids),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["shop-faqs", shopId] });
+      await refetchAllShopFaqLists();
       setSelectedFaqIds([]);
     },
   });
@@ -183,16 +203,6 @@ export default function ShopDetailPage() {
                         onChange={(e) => setProductSearch(e.target.value)}
                         placeholder={tProducts("searchPlaceholder")}
                       />
-                      <Select
-                        value={productActive}
-                        onChange={setProductActive}
-                        style={{ width: 180 }}
-                        options={[
-                          { value: "all", label: tCommon("all") },
-                          { value: "true", label: tCommon("active") },
-                          { value: "false", label: tCommon("inactive") },
-                        ]}
-                      />
                       <Button type="primary" onClick={() => setProductDrawerOpen(true)}>
                         {tProducts("add")}
                       </Button>
@@ -214,7 +224,7 @@ export default function ShopDetailPage() {
                           { title: tCommon("name") },
                           { title: tProducts("price") },
                           { title: tCommon("searchContent") },
-                          { title: tCommon("active") },
+                          { title: tCommon("status") },
                           { title: tCommon("actions") },
                         ]}
                       />
@@ -237,9 +247,13 @@ export default function ShopDetailPage() {
                             render: (value?: string | null) => value || "-",
                           },
                           {
-                            title: tCommon("active"),
+                            title: tCommon("status"),
                             dataIndex: "isActive",
-                            render: (value: boolean) => (value ? tProducts("yes") : tProducts("no")),
+                            render: (value: boolean) => (
+                              <span className={value ? "text-green-600" : "text-red-500"}>
+                                {value ? tCommon("active") : tCommon("inactive")}
+                              </span>
+                            ),
                           },
                           {
                             title: tCommon("actions"),
@@ -302,6 +316,7 @@ export default function ShopDetailPage() {
                         columns={[
                           { title: tFaqs("question") },
                           { title: tFaqs("answer") },
+                          { title: tCommon("status") },
                           { title: tCommon("actions") },
                         ]}
                       />
@@ -316,7 +331,20 @@ export default function ShopDetailPage() {
                         }}
                         columns={[
                           { title: tFaqs("question"), dataIndex: "question" },
-                          { title: tFaqs("answer"), dataIndex: "answer" },
+                          {
+                            title: tFaqs("answer"),
+                            dataIndex: "answer",
+                            ellipsis: true,
+                          },
+                          {
+                            title: tCommon("status"),
+                            dataIndex: "isActive",
+                            render: (value: boolean) => (
+                              <span className={value ? "text-green-600" : "text-red-500"}>
+                                {value ? tCommon("active") : tCommon("inactive")}
+                              </span>
+                            ),
+                          },
                           {
                             title: tCommon("actions"),
                             key: "actions",
@@ -328,6 +356,7 @@ export default function ShopDetailPage() {
                                   faqDetailForm.setFieldsValue({
                                     question: faq.question,
                                     answer: faq.answer,
+                                    isActive: faq.isActive,
                                   });
                                   setFaqDetailOpen(true);
                                 }}
@@ -442,6 +471,13 @@ export default function ShopDetailPage() {
                         <Form.Item label={tCommon("searchContent")} name={[field.name, "searchContent"]}>
                           <Input.TextArea rows={2} />
                         </Form.Item>
+                        <Form.Item
+                          label={tCommon("active")}
+                          name={[field.name, "isActive"]}
+                          valuePropName="checked"
+                        >
+                          <Switch />
+                        </Form.Item>
                       </Card>
                     ))}
                   </Space>
@@ -453,6 +489,7 @@ export default function ShopDetailPage() {
                         name: "",
                         price: 0,
                         thumbnailUrl: "",
+                        imageUrlsText: "",
                         searchContent: "",
                         isActive: true,
                       })
@@ -545,6 +582,9 @@ export default function ShopDetailPage() {
             <Form.Item label={tCommon("searchContent")} name="searchContent">
               <Input.TextArea rows={2} />
             </Form.Item>
+            <Form.Item label={tCommon("active")} name="isActive" valuePropName="checked">
+              <Switch />
+            </Form.Item>
 
             <div className="mt-6 flex justify-between gap-2">
               <Button
@@ -591,12 +631,13 @@ export default function ShopDetailPage() {
             form={faqForm}
             layout="vertical"
             initialValues={{
-              items: [{ question: "", answer: "" }],
+              items: [{ question: "", answer: "", isActive: true }],
             }}
             onFinish={(values: {
               items: {
                 question: string;
                 answer: string;
+                isActive?: boolean;
               }[];
             }) =>
               createFaqsMutation.mutate(
@@ -604,6 +645,7 @@ export default function ShopDetailPage() {
                   shopId,
                   question: item.question,
                   answer: item.answer,
+                  isActive: item.isActive,
                 })),
               )
             }
@@ -639,6 +681,13 @@ export default function ShopDetailPage() {
                         >
                           <Input.TextArea rows={3} />
                         </Form.Item>
+                        <Form.Item
+                          label={tCommon("active")}
+                          name={[field.name, "isActive"]}
+                          valuePropName="checked"
+                        >
+                          <Switch />
+                        </Form.Item>
                       </Card>
                     ))}
                   </Space>
@@ -649,6 +698,7 @@ export default function ShopDetailPage() {
                       add({
                         question: "",
                         answer: "",
+                        isActive: true,
                       })
                     }
                   >
@@ -685,13 +735,18 @@ export default function ShopDetailPage() {
           <Form
             form={faqDetailForm}
             layout="vertical"
-            onFinish={(values: { question: string; answer: string }) => {
+            onFinish={(values: {
+              question: string;
+              answer: string;
+              isActive?: boolean;
+            }) => {
               if (!currentFaq) return;
               updateFaqMutation.mutate({
                 id: currentFaq.id,
                 data: {
                   question: values.question,
                   answer: values.answer,
+                  isActive: values.isActive,
                 },
               });
             }}
@@ -709,6 +764,9 @@ export default function ShopDetailPage() {
               rules={[{ required: true, message: tFaqs("form.answerRequired") }]}
             >
               <Input.TextArea rows={3} />
+            </Form.Item>
+            <Form.Item label={tCommon("active")} name="isActive" valuePropName="checked">
+              <Switch />
             </Form.Item>
 
             <div className="mt-6 flex justify-between gap-2">

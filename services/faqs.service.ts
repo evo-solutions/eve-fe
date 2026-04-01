@@ -6,6 +6,7 @@ export interface FaqItem {
   shopId: string;
   question: string;
   answer: string;
+  isActive: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -30,6 +31,7 @@ export const faqsService = {
     shopId: string;
     question: string;
     answer: string;
+    isActive?: boolean;
   }[]): Promise<FaqItem[]> {
     const { data } = await authAxiosService.post<FaqItem[]>("/faqs/create", {
       items,
@@ -41,6 +43,7 @@ export const faqsService = {
     payload: {
       question?: string;
       answer?: string;
+      isActive?: boolean;
     },
   ): Promise<FaqItem> {
     try {

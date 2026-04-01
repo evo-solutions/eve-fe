@@ -53,7 +53,7 @@
     "userId": "ID người dùng",
     "noDescription": "Không có mô tả",
     "createDrawerTitle": "Tạo cửa hàng",
-    "detailDrawerTitle": "Chi tiet cua hang: {name}",
+    "detailDrawerTitle": "Chi tiết cửa hàng: {name}",
     "detailDrawerFallbackTitle": "Chi tiết cửa hàng",
     "deleteThisShop": "Xóa cửa hàng này",
     "addAnotherShop": "Thêm cửa hàng khác",
