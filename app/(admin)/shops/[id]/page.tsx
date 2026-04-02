@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Card, Input, Switch, Tabs, Table, Button, Drawer, Form, Space } from "antd";
+import { Card, Input, Switch, Tabs, Table, Button, Drawer, Form, Space, Select } from "antd";
 import { useParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { AuthGuard } from "@/components/auth/AuthGuard";
@@ -20,6 +20,10 @@ export default function ShopDetailPage() {
   const debouncedProductSearch = useDebouncedValue(productSearch, 350);
   const [faqSearch, setFaqSearch] = useState("");
   const debouncedFaqSearch = useDebouncedValue(faqSearch, 350);
+  const [productStatusFilter, setProductStatusFilter] = useState<"all" | "true" | "false">(
+    "all",
+  );
+  const [faqStatusFilter, setFaqStatusFilter] = useState<"all" | "true" | "false">("all");
   const [productDrawerOpen, setProductDrawerOpen] = useState(false);
   const [faqDrawerOpen, setFaqDrawerOpen] = useState(false);
   const [productForm] = Form.useForm();
@@ -53,24 +57,30 @@ export default function ShopDetailPage() {
   });
 
   const productsQuery = useQuery({
-    queryKey: ["shop-products", shopId, debouncedProductSearch],
+    queryKey: ["shop-products", shopId, debouncedProductSearch, productStatusFilter],
     queryFn: ({ signal }) =>
       productsService.list({
         shopId,
         limit: 100,
         search: debouncedProductSearch || undefined,
+        isActive:
+          productStatusFilter === "all"
+            ? undefined
+            : productStatusFilter === "true",
         signal,
       }),
     enabled: !!shopId,
   });
 
   const faqsQuery = useQuery({
-    queryKey: ["shop-faqs", shopId, debouncedFaqSearch],
+    queryKey: ["shop-faqs", shopId, debouncedFaqSearch, faqStatusFilter],
     queryFn: ({ signal }) =>
       faqsService.list({
         shopId,
         limit: 100,
         search: debouncedFaqSearch || undefined,
+        isActive:
+          faqStatusFilter === "all" ? undefined : faqStatusFilter === "true",
         signal,
       }),
     enabled: !!shopId,
@@ -185,7 +195,7 @@ export default function ShopDetailPage() {
           title={tShopDetail("title", { name: shopQuery.data?.name ?? shopId })}
           extra={
             <Link href={`/shops/${shopId}/chat`}>
-              <Button type="default">{tShopDetail("goToChat")}</Button>
+              <Button type="default" disabled={!shopQuery.data?.isActive}>{tShopDetail("goToChat")}</Button>
             </Link>
           }
         >
@@ -196,12 +206,23 @@ export default function ShopDetailPage() {
                 label: tShopDetail("productsTab"),
                 children: (
                   <div>
-                    <div className="mb-4 flex gap-3 items-center">
+                    <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
                       <Input.Search
                         allowClear
                         value={productSearch}
                         onChange={(e) => setProductSearch(e.target.value)}
                         placeholder={tProducts("searchPlaceholder")}
+                        className="min-w-[200px] flex-1"
+                      />
+                      <Select
+                        value={productStatusFilter}
+                        onChange={setProductStatusFilter}
+                        style={{ width: 180 }}
+                        options={[
+                          { value: "all", label: tCommon("all") },
+                          { value: "true", label: tCommon("active") },
+                          { value: "false", label: tCommon("inactive") },
+                        ]}
                       />
                       <Button type="primary" onClick={() => setProductDrawerOpen(true)}>
                         {tProducts("add")}
@@ -289,12 +310,23 @@ export default function ShopDetailPage() {
                 label: tShopDetail("faqsTab"),
                 children: (
                   <div>
-                    <div className="mb-4 flex gap-3 items-center">
+                    <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
                       <Input.Search
                         allowClear
                         value={faqSearch}
                         onChange={(e) => setFaqSearch(e.target.value)}
                         placeholder={tFaqs("searchPlaceholder")}
+                        className="min-w-[200px] flex-1"
+                      />
+                      <Select
+                        value={faqStatusFilter}
+                        onChange={setFaqStatusFilter}
+                        style={{ width: 180 }}
+                        options={[
+                          { value: "all", label: tCommon("all") },
+                          { value: "true", label: tCommon("active") },
+                          { value: "false", label: tCommon("inactive") },
+                        ]}
                       />
                       <Button type="primary" onClick={() => setFaqDrawerOpen(true)}>
                         {tFaqs("add")}

@@ -17,6 +17,7 @@ export const faqsService = {
     includeDeleted?: boolean;
     limit?: number;
     search?: string;
+    isActive?: boolean;
     signal?: AbortSignal;
   }): Promise<FaqItem[]> {
     const { signal, ...query } = params ?? {};
